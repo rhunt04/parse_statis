@@ -7,3 +7,6 @@ STATIS files.
 ```
 make release
 ```
+
+The binary will appear in `build-$(uname -m)/bin`. Objects and module files
+will appear in `build-$(uname -m)/obj`.
