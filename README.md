@@ -1,5 +1,9 @@
-# dl_scripts
+# parse_statis
 
-Scripts I've written to help deal with `DL_POLY[_4.0]`.
+A fortran2003 script for grabbing information and statistics from DL_POLY_[4.0]
+STATIS files.
 
-- parse_statis.f03 : grab information and statistics from `STATIS` files.
+99% of the time you'll just want to run:
+```
+make release
+```
