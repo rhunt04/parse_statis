@@ -18,9 +18,9 @@ MODULE utils
   ! See DL_POLY_4.0 manual - specifically the section on the "STATIS" file
   ! for info about this data.
   CHARACTER(*), DIMENSION(28), PARAMETER :: label_list = [ &
-    &"engcns", "  temp", "engcfg", "engsrp", "engcpe",&
+    &"engcns", "  temp", "engcfg", "engsrc", "engcpe",&
     &"engbnd", "engang", "engdih", "engtet", "enthal",&
-    &"tmprot", "   vir", "virsrp", "vircpe", "virbnd",&
+    &"tmprot", "   vir", "virsrc", "vircpe", "virbnd",&
     &"virang", "vircon", "virtet", "volume", "tmpshl",&
     &"engshl", "virshl", " alpha", "  beta", " gamma",&
     &"virpmf", " press", " consv" ]
@@ -373,15 +373,16 @@ MODULE utils
     INTEGER, INTENT(in) :: ir, chunk_size
     REAL(dp), INTENT(inout) :: dat(:)
     CHARACTER(*), INTENT(in) :: dfmt
-    INTEGER i
+    INTEGER i, ierr
 
     do i = 1, size(dat)
       if ( (mod(i, chunk_size) == 0) .or. (i == size(dat)) ) then
         ! On newline!
-        read(ir, dfmt, advance = "yes") dat(i)
+        read(ir, dfmt, advance = "yes", iostat = ierr) dat(i)
       else
-        read(ir, dfmt, advance = "no") dat(i)
+        read(ir, dfmt, advance = "no", iostat = ierr) dat(i)
       endif
+      if ( ierr /= 0 ) call finish("issue reading floats in STATIS")
     enddo
 
   END SUBROUTINE
