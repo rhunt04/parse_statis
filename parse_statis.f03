@@ -75,15 +75,15 @@ MODULE utils
 
   CONTAINS
 
-  SUBROUTINE get_int(str, i, ierr, pos)
+  SUBROUTINE get_int(string, i, ierr, pos)
     ! Given a char, try to read an int.
     ! Optionally make sure it's > 0.
     IMPLICIT NONE
-    CHARACTER(*), INTENT(in) :: str
+    CHARACTER(*), INTENT(in) :: string
     INTEGER, INTENT(out) :: i, ierr
     LOGICAL, OPTIONAL, INTENT(in) :: pos
 
-    read(str, *, iostat = ierr) i
+    read(string, *, iostat = ierr) i
 
     if ( present(pos) ) then
       if ( pos ) then
@@ -100,7 +100,7 @@ MODULE utils
     CHARACTER(*), INTENT(out) :: statis_file, output_file
     LOGICAL, INTENT(OUT) :: got_labels
     INTEGER, ALLOCATABLE, INTENT(inout) :: labels(:)
-    LOGICAL :: label_ok = .false.
+    LOGICAL :: labels_ok = .false.
 
     num_args = command_argument_count()
 
@@ -120,9 +120,16 @@ MODULE utils
             ! Get the labels...
             call get_command_argument(iarg + 1, arg)
 
+            ! Handy shortcuts for known quantities.
+            call replace_label_shortcuts(arg)
+
             ! Check the labels...
-            call delim_separated_extract(arg, labels, label_ok)
-            if ( .not. label_ok ) call usage("bad label string")
+            call delim_separated_extract(arg, labels, labels_ok)
+            if ( .not. labels_ok ) then
+              ! If not, deallocate (if allocated) the array.
+              if (allocated(labels)) deallocate(labels)
+              call usage("bad label string")
+            endif
 
           case("--statis_file", "-s")
             call get_command_argument(iarg + 1, arg)
@@ -178,6 +185,8 @@ MODULE utils
         &set output filename (default '"//trim(output_default)//"')."
       write(*, *) "   [--labels      | -l] <int>,<int>,... : &
         &comma-separated list of integer fields to analyse."
+      write(*, *) "                                          &
+        &(E, P, V, and T supported as shorthands)."
       write(*, *) "   [--ignore      | -i] <int>           : &
         &number of lines to skip analysis for (default 0)."
       write(*, *) "   [--write-skip  | -w] <int>           : &
@@ -188,6 +197,8 @@ MODULE utils
         &show this dialog."
       write(*, *)
       write(*, *) "Example: ./parse_statis -s ST1 -o PARSED -l 1,2,3 -w &
+        &1000 -i 5000"
+      write(*, *) "(equiv): ./parse_statis -s ST1 -o PARSED -l E,T,3 -w &
         &1000 -i 5000"
       write(*, *)
       write(*, *) "Will:"
@@ -246,6 +257,9 @@ MODULE utils
 
       if ( ierr == 0 ) then
 
+        ! Handy shortcuts for known quantities.
+        call replace_label_shortcuts(label_string)
+
         ! Try to get labels from comma-separated list.
         call delim_separated_extract(label_string, labels_arr, labels_ok)
 
@@ -275,10 +289,41 @@ MODULE utils
 
     n = count(transfer(string, 'a', len(string)) == ",")
     allocate(array_ints(n + 1))
+    array_ints(1:n+1) = 0
     read(string, *, iostat = ierr2) array_ints(1:n+1)
     ok = ( ( ierr2 == 0 ) .and. all(array_ints > 0) )
 
   END SUBROUTINE delim_separated_extract
+
+
+  FUNCTION replace_text(string, text, repl) RESULT(outs)
+    ! Replace text in string with repl.
+    IMPLICIT NONE
+    CHARACTER(*) string, text, repl
+    CHARACTER(len(string) + 20) outs ! TODO: Actually count matches...
+    INTEGER i, nt, nr
+
+    outs = string
+    nt = len_trim(text)
+    nr = len_trim(repl)
+    do
+       i = index(outs, text(:nt))
+       if (i == 0) exit
+       outs = outs(:i-1) // repl(:nr) // outs(i+nt:)
+    end do
+    outs=trim(outs)
+  END FUNCTION replace_text
+
+
+  SUBROUTINE replace_label_shortcuts(arg)
+    IMPLICIT NONE
+    CHARACTER(*), INTENT(inout) :: arg
+    arg = replace_text(arg, "E", "1")
+    arg = replace_text(arg, "T", "2")
+    arg = replace_text(arg, "V", "19")
+    arg = replace_text(arg, "P", "27")
+
+  END SUBROUTINE replace_label_shortcuts
 
 
   SUBROUTINE finish(message)
@@ -745,10 +790,12 @@ PROGRAM main
 
   ! These will be obscured by data at the bottom of the file - re-write them!
   if ( .not. g_avg_only ) call write_labels(2, labels, num_labels)
+  if ( allocated(labels) ) deallocate(labels)
 
   ! Write averages
   call write_stats(2, val_stats, ntstep)
   if ( allocated(val_stats) ) deallocate(val_stats)
+  if ( allocated(label_values) ) deallocate(label_values)
 
   ! Write warning, if tripped.
   ! No hashtag - want this to be apparent if try plotting file.
