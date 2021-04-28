@@ -55,6 +55,7 @@ MODULE utils
 
   PRIVATE
 
+  PUBLIC itoa, formatted_error
   PUBLIC dp, label_list
   PUBLIC g_ignore_lines, g_write_skip, g_avg_only
 
@@ -541,7 +542,7 @@ MODULE utils
         ! Don't trim. Want the whitespace padding out the labels.
         write(iw, "(A20)", advance = "no") adjustr(label_list(labels(i)))
       else
-        write(iw, "(I20)", advance = "no") labels(i)
+        write(iw, "(A20)", advance = "no") "F"//itoa(labels(i))
       endif
     enddo
 
@@ -602,7 +603,7 @@ MODULE utils
     write(iw, *) "#"
 
     if ( g_ignore_lines > 0 ) then
-      write(iw, *) "# Ignored "//trim(itoa(g_ignore_lines))//&
+      write(iw, *) "# Ignored "//itoa(g_ignore_lines)//&
         &" lines of STATIS file in forming the above statistics, "//&
         &"and did NOT reblock."
     endif
@@ -684,13 +685,13 @@ MODULE utils
     resc_x = anint(resc_factor * x) / resc_factor
 
     if ( oom > 0 ) then
-      char_fmt = '(f' // trim(itoa(oom + 9)) // '.' // trim(itoa(oom)) // ')'
+      char_fmt = '(f' // itoa(oom + 9) // '.' // itoa(oom) // ')'
       write(char_x, char_fmt) resc_x
     else
-      char_x = trim(itoa(int(resc_x)))
+      char_x = itoa(int(resc_x))
     endif
 
-    write(char_dx, '(f' // trim(itoa(ns_fig + 9)) // '.0)') resc_dx
+    write(char_dx, '(f' // itoa(ns_fig + 9) // '.0)') resc_dx
     char_dx = adjustl(char_dx)
     char_dx = char_dx(1:len_trim(char_dx) - 1)
 
@@ -707,7 +708,7 @@ PROGRAM main
   REAL(dp), ALLOCATABLE :: all_values(:), label_values(:), val_stats(:, :)
   INTEGER, ALLOCATABLE :: labels(:)
   CHARACTER(80) :: statis_file, output_file
-  INTEGER :: ierr, tstep, ntstep = 0, statis_size, num_labels
+  INTEGER :: ierr, tstep, ntstep = 0, statis_size, num_labels, i
   REAL(dp) :: time
   LOGICAL :: got_labels = .false., statis_exist, extent_warn = .false.
 
@@ -788,12 +789,39 @@ PROGRAM main
 
   enddo
 
-  ! These will be obscured by data at the bottom of the file - re-write them!
-  if ( .not. g_avg_only ) call write_labels(2, labels, num_labels)
-  if ( allocated(labels) ) deallocate(labels)
+  !! DON'T do this. Prefer the new way below.
+  !! ! These will be obscured by data at the bottom of the file - re-write them!
+  !! if ( .not. g_avg_only ) call write_labels(2, labels, num_labels)
 
-  ! Write averages
-  call write_stats(2, val_stats, ntstep)
+  !! ! Write averages
+  !! call write_stats(2, val_stats, ntstep)
+
+  ! TODO: tidy into write_stats.
+  ! This form is preferrable: doesn't lead to (very) wide PARSED files at the
+  ! bottom. Ideally, would probably just remove variance by default.
+  write(2, *)
+  write(2, *)
+  write(2,"(1A, 7X, 4A14)") "#", "mean", "variance", "std. dev.", "pretty"
+  do i = 1, num_labels
+    if ( labels(i) .lt. size(label_list) ) then
+      write(2, "(1A, A7, 3ES14.6, 2X, A12)") "#",&
+        &trim(adjustl(label_list(labels(i)))),&
+        &val_stats(i, 1),&
+        &val_stats(i, 2) / (ntstep - 1),&
+        &sqrt(val_stats(i, 2) / (ntstep - 1)),&
+        &formatted_error(val_stats(i, 1), sqrt(val_stats(i, 2)/(ntstep - 1)), 1)
+    else
+      ! Field number. Standardise this naming?
+      write(2, "(1A, A7, 3ES14.6, 2X, A12)") "#",&
+        &"F"//itoa(labels(i)),&
+        &val_stats(i, 1),&
+        &val_stats(i, 2) / (ntstep - 1),&
+        &sqrt(val_stats(i, 2) / (ntstep - 1)),&
+        &formatted_error(val_stats(i, 1), sqrt(val_stats(i, 2)/(ntstep - 1)), 1)
+    endif
+  enddo
+
+  if ( allocated(labels) ) deallocate(labels)
   if ( allocated(val_stats) ) deallocate(val_stats)
   if ( allocated(label_values) ) deallocate(label_values)
 
