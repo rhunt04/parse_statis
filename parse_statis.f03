@@ -348,13 +348,14 @@ MODULE utils
     LOGICAL :: spacer = .false.
     CHARACTER(10) :: hfmt
     CHARACTER(width) :: tmpline
-    INTEGER i
+    INTEGER i, ierr
 
     write(hfmt, *) "(A"//itoa(width)//")"
 
     ! Copy two header lines over from STATIS.
     do i = 1, nlines
-      read(ir, hfmt) tmpline
+      read(ir, hfmt, iostat = ierr) tmpline
+      if ( ierr /= 0 ) call finish("issue reading header in STATIS")
       write(iw, *) "# "//trim(adjustl(tmpline))
     enddo
 
