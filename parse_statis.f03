@@ -528,10 +528,11 @@ MODULE utils
     ! Write labels across the top.
     if ( .not. g_avg_only ) then
       write(iw, *)
-      write(iw, "(1X, A1, A9, A14)", advance = "no") &
-        &"#", adjustr("ntstep"), adjustr("time")
+      write(iw, "(1X, A1, A13)", advance = "no") &
+        &"#", adjustr("time")
     else
       write(iw, "(1X, A1, A23)", advance = "no") "#", adjustr("Averages only:")
+      return
     endif
 
     do i = 1, num_labels - 1
@@ -621,22 +622,22 @@ MODULE utils
   END FUNCTION
 
 
-  FUNCTION trim_zeros(r) RESULT(rt)
-    REAL(dp), INTENT(in) :: r
-    CHARACTER(:), ALLOCATABLE :: rt
-    CHARACTER(20) :: str
-    INTEGER :: ii, is = 0
-    write(str, '(f20.12)') r
-    str = trim(adjustl(str))
-    do ii = len_trim(str), 1, -1
-      if ( str(ii:ii) /= "0" ) then
-        ! Avoid printing, e.g. "1." instead of "1.0". We want some precision...
-        if ( str(ii:ii) == '.' ) is = 1
-        exit
-      endif
-    enddo
-    rt = str(1:ii + is)
-  END FUNCTION trim_zeros
+!   FUNCTION trim_zeros(r) RESULT(rt)
+!     REAL(dp), INTENT(in) :: r
+!     CHARACTER(:), ALLOCATABLE :: rt
+!     CHARACTER(20) :: str
+!     INTEGER :: ii, is = 0
+!     write(str, '(f20.12)') r
+!     str = trim(adjustl(str))
+!     do ii = len_trim(str), 1, -1
+!       if ( str(ii:ii) /= "0" ) then
+!         ! Avoid printing, e.g. "1." instead of "1.0". We want some precision...
+!         if ( str(ii:ii) == '.' ) is = 1
+!         exit
+!       endif
+!     enddo
+!     rt = str(1:ii + is)
+!   END FUNCTION trim_zeros
 
 
   FUNCTION formatted_error(x, dx, ns_fig) RESULT(xdxs)
@@ -657,8 +658,9 @@ MODULE utils
       if ( abs(x) <= tiny(1.d0) ) then
         xdxs = "0 (0; ex)"
       else
-        write(char_x, *) trim_zeros(x) // " (ex)"
-        xdxs = trim(adjustl(char_x))
+        ! write(char_x, *) trim_zeros(x) // " (ex)"
+        write(char_x, '(ES14.6)') x !// " (ex)"
+        xdxs = trim(adjustl(char_x))//" (ex)"
       endif
       return
     endif
@@ -780,7 +782,7 @@ PROGRAM main
 
     ! Write values.
     if ( (.not. g_avg_only) .and. (mod(tstep, g_write_skip) == 0) ) then
-      write(2, "(1X, I10, ES14.6)", advance = "no") tstep, time
+      write(2, "(1X, ES14.6)", advance = "no") time ! tstep, time
       call write_rows(2, label_values, output_write_fmt)
     endif
 
@@ -802,10 +804,10 @@ PROGRAM main
   ! bottom. Ideally, would probably just remove variance by default.
   write(2, *)
   write(2, *)
-  write(2,"(1A, 7X, 4A14)") "#", "mean", "variance", "std. dev.", "pretty"
+  write(2,"(A2, 7X, 3A14, A20)") " #", "mean", "variance", "std. dev.", "pretty"
   do i = 1, num_labels
     if ( labels(i) .lt. size(label_list) ) then
-      write(2, "(1A, A7, 3ES14.6, 2X, A12)") "#",&
+      write(2, "(A2, A7, 3ES14.6, 2X, A18)") " #",&
         &trim(adjustl(label_list(labels(i)))),&
         &val_stats(i, 1),&
         &val_stats(i, 2) / (ntstep - 1),&
@@ -813,7 +815,7 @@ PROGRAM main
         &formatted_error(val_stats(i, 1), sqrt(val_stats(i, 2)/(ntstep - 1)), 1)
     else
       ! Field number. Standardise this naming?
-      write(2, "(1A, A7, 3ES14.6, 2X, A12)") "#",&
+      write(2, "(A2, A7, 3ES14.6, 2X, A18)") " #",&
         &"F"//itoa(labels(i)),&
         &val_stats(i, 1),&
         &val_stats(i, 2) / (ntstep - 1),&
