@@ -415,10 +415,11 @@ MODULE utils
   END SUBROUTINE write_rows_char
 
 
-  SUBROUTINE read_statis_values(ir, dat, dfmt, chunk_size)
+  SUBROUTINE read_statis_values(ir, dat, dfmt, chunk_size, stat)
     IMPLICIT NONE
     INTEGER, INTENT(in) :: ir, chunk_size
     REAL(dp), INTENT(inout) :: dat(:)
+    LOGICAL, INTENT(inout) :: stat
     CHARACTER(*), INTENT(in) :: dfmt
     INTEGER i, ierr
 
@@ -429,7 +430,7 @@ MODULE utils
       else
         read(ir, dfmt, advance = "no", iostat = ierr) dat(i)
       endif
-      if ( ierr /= 0 ) call finish("issue reading floats in STATIS")
+      stat = ( ierr == 0 ) ! call finish("issue reading floats in STATIS")
     enddo
 
   END SUBROUTINE
@@ -713,12 +714,12 @@ PROGRAM main
   CHARACTER(80) :: statis_file, output_file
   INTEGER :: ierr, tstep, ntstep = 0, statis_size, num_labels, i
   REAL(dp) :: time
-  LOGICAL :: got_labels = .false., statis_exist, extent_warn = .false.
+  LOGICAL :: got_labels = .false., stat, extent_warn = .false.
 
   call handle_args(statis_file, output_file, got_labels, labels)
 
-  inquire (file = statis_file, exist = statis_exist)
-  if ( .not. statis_exist ) call finish("STATIS file doesn't exist")
+  inquire (file = statis_file, exist = stat)
+  if ( .not. stat ) call finish("STATIS file doesn't exist")
 
   if ( .not. got_labels ) then
     ! Get some...!
@@ -774,7 +775,10 @@ PROGRAM main
     allocate(all_values(statis_size)) ; all_values = 1337.13372d0
 
     ! Get values... Chunks of 5.
-    call read_statis_values(1, all_values, statis_read_fmt, 5)
+    call read_statis_values(1, all_values, statis_read_fmt, 5, stat)
+    ! Couldn't read a full line? Don't exit: just break loop.
+    ! Will trigger stats printout for what was read so far.
+    if ( .not. stat ) exit
 
     ! Filter out the values we actually want.
     call filter_values(label_values, all_values, labels)
@@ -804,6 +808,10 @@ PROGRAM main
   ! bottom. Ideally, would probably just remove variance by default.
   write(2, *)
   write(2, *)
+  if ( .not. stat ) then
+    write(*, *) "# PARTIAL only: was a problem reading a full STATIS line."
+    write(2, *) "# PARTIAL only: was a problem reading a full STATIS line."
+  end if
   write(2,"(A2, 7X, 3A14, A20)") " #", "mean", "variance", "std. dev.", "pretty"
   do i = 1, num_labels
     if ( labels(i) .lt. size(label_list) ) then
